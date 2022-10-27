@@ -1,0 +1,164 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {},
+    "resources": [{
+        "name": "[toLower('semabayrakstorage')]",
+        "type": "Microsoft.Storage/storageAccounts",
+        "apiVersion": "2021-04-01",
+        "location": "[resourceGroup().location]",
+        "tags": {
+            "displayName": "semabayrak Storage Account"
+        },
+        "sku": {
+            "name": "Standard_LRS"
+        },
+        "kind": "Storage"
+    },
+    {
+        "name": "semabayrak-PublicIP",
+        "type": "Microsoft.Network/publicIPAddresses",
+        "apiVersion": "2020-11-01",
+        "location": "[resourceGroup().location]",
+        "tags": {
+            "displayName": "PublicIPAddress"
+        },
+        "properties": {
+            "publicIPAllocationMethod": "Dynamic",
+            "dnsSettings": {
+                "domainNameLabel": "[toLower('semabayrak')]"
+            }
+        }
+    },
+    {
+        "name": "semabayrak-nsg",
+        "type": "Microsoft.Network/networkSecurityGroups",
+        "apiVersion": "2020-11-01",
+        "location": "[resourceGroup().location]",
+        "properties": {
+            "securityRules": [
+                {
+                    "name": "nsgRule1",
+                    "properties": {
+                        "description": "description",
+                        "protocol": "Tcp",
+                        "sourcePortRange": "*",
+                        "destinationPortRange": "22",
+                        "sourceAddressPrefix": "*",
+                        "destinationAddressPrefix": "*",
+                        "access": "Allow",
+                        "priority": 100,
+                        "direction": "Inbound"
+                    }
+                }
+            ]
+        }
+    },
+    {
+        "name": "semabayrak-VirtualNetwork",
+        "type": "Microsoft.Network/virtualNetworks",
+        "apiVersion": "2020-11-01",
+        "location": "[resourceGroup().location]",
+        "dependsOn": [
+            "[resourceId('Microsoft.Network/networkSecurityGroups', 'semabayrak-nsg')]"
+        ],
+        "tags": {
+            "displayName": "semabayrak-VirtualNetwork"
+        },
+        "properties": {
+            "addressSpace": {
+                "addressPrefixes": [
+                    "10.0.0.0/16"
+                ]
+            },
+            "subnets": [
+                {
+                    "name": "semabayrak-VirtualNetwork-Subnet",
+                    "properties": {
+                        "addressPrefix": "10.0.0.0/24",
+                        "networkSecurityGroup": {
+                            "id": "[resourceId('Microsoft.Network/networkSecurityGroups', 'semabayrak-nsg')]"
+                        }
+                    }
+                }
+            ]
+        }
+    },
+    {
+        "name": "semabayrak-NetworkInterface",
+        "type": "Microsoft.Network/networkInterfaces",
+        "apiVersion": "2020-11-01",
+        "location": "[resourceGroup().location]",
+        "dependsOn": [
+            "[resourceId('Microsoft.Network/publicIPAddresses', 'semabayrak-PublicIP')]",
+            "[resourceId('Microsoft.Network/virtualNetworks', 'semabayrak-VirtualNetwork')]"
+        ],
+        "tags": {
+            "displayName": "semabayrak-NetworkInterface"
+        },
+        "properties": {
+            "ipConfigurations": [
+                {
+                    "name": "ipConfig1",
+                    "properties": {
+                        "privateIPAllocationMethod": "Dynamic",
+                        "publicIPAddress": {
+                            "id": "[resourceId('Microsoft.Network/publicIPAddresses', 'semabayrak-PublicIP')]"
+                        },
+                        "subnet": {
+                            "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', 'semabayrak-VirtualNetwork', 'semabayrak-VirtualNetwork-Subnet')]"
+                        }
+                    }
+                }
+            ]
+        }
+    },
+    {
+        "name": "semabayrak",
+        "type": "Microsoft.Compute/virtualMachines",
+        "apiVersion": "2021-03-01",
+        "location": "[resourceGroup().location]",
+        "dependsOn": [
+            "[resourceId('Microsoft.Network/networkInterfaces', 'semabayrak-NetworkInterface')]"
+        ],
+        "tags": {
+            "displayName": "semabayrak"
+        },
+        "properties": {
+            "hardwareProfile": {
+                "vmSize": "Standard_A2_v2"
+            },
+            "osProfile": {
+                "computerName": "semabayrak",
+                "adminUsername": "adminUsername",
+                "adminPassword": "semabayrak2233"
+            },
+            "storageProfile": {
+                "imageReference": {
+                    "publisher": "Canonical",
+                    "offer": "UbuntuServer",
+                    "sku": "16.04-LTS",
+                    "version": "latest"
+                },
+                "osDisk": {
+                    "name": "semabayrak-OSDisk",
+                    "caching": "ReadWrite",
+                    "createOption": "FromImage"
+                }
+            },
+            "networkProfile": {
+                "networkInterfaces": [
+                    {
+                        "id": "[resourceId('Microsoft.Network/networkInterfaces', 'semabayrak-NetworkInterface')]"
+                    }
+                ]
+            },
+            "diagnosticsProfile": {
+                "bootDiagnostics": {
+                    "enabled": true,
+                    "storageUri": "[reference(resourceId('Microsoft.Storage/storageAccounts/', toLower('semabayrakstorage'))).primaryEndpoints.blob]"
+                }
+            }
+        }
+    }]
+}
